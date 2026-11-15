@@ -44,11 +44,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/nabheet/google-services-mcp.git"
+    "url": "git+https://github.com/singlebarrellabs/google-services-mcp.git"
   },
-  "homepage": "https://github.com/nabheet/google-services-mcp#readme",
+  "homepage": "https://github.com/singlebarrellabs/google-services-mcp#readme",
   "bugs": {
-    "url": "https://github.com/nabheet/google-services-mcp/issues"
+    "url": "https://github.com/singlebarrellabs/google-services-mcp/issues"
   },
   "engines": {
     "node": ">=24"
@@ -67,7 +67,7 @@
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   },
-  "author": "Nabheet S. Sandhu",
+  "author": "Single Barrel Labs",
   "publishConfig": {
     "access": "public"
   },
