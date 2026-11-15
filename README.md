@@ -285,7 +285,7 @@ npx -y google-services-mcp --help              # show help
 ## Local development
 
 ```bash
-git clone https://github.com/nabheet/google-services-mcp.git
+git clone https://github.com/singlebarrellabs/google-services-mcp.git
 cd google-services-mcp
 npm install
 npm run build        # compile to dist/
@@ -322,7 +322,7 @@ Prerelease tags `v*-beta*` publish to `beta` with a prerelease GitHub release
 (patch/minor builds for milestone testing). Publishing uses npm **trusted
 publishing** (OIDC): configure it once per package at
 `npmjs.com/package/google-services-mcp/access` with the GitHub repository
-`nabheet/google-services-mcp` and workflow name `ci.yml`.
+`singlebarrellabs/google-services-mcp` and workflow name `ci.yml`.
 npm allows **one trusted publisher per package** and validates the calling
 workflow's filename — all channels run from the same `ci.yml` file.
 No `NPM_TOKEN` secret is required.
