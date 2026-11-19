@@ -236,6 +236,19 @@ describe("end-to-end tool calls", () => {
     );
   });
 
+  it("google_gmail_send forwards threadId to join an existing conversation", async () => {
+    await setup();
+    mockGmailMessages.send.mockResolvedValue({ data: { id: "m2", threadId: "t9" } });
+    const result = await callTool("google_gmail_send", {
+      to: "a@example.com",
+      subject: "Re: Hi",
+      body: "Hello again",
+      threadId: "t9",
+    });
+    expect(result).toEqual({ id: "m2", threadId: "t9" });
+    expect(mockGmailMessages.send.mock.calls[0][0].requestBody.threadId).toBe("t9");
+  });
+
   it("google_gmail_list maps results", async () => {
     await setup();
     mockGmailMessages.list.mockResolvedValue({

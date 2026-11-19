@@ -272,7 +272,11 @@ export function registerTools(server: McpServer): void {
     "google_gmail_send",
     {
       title: "Send email",
-      description: "Send an email from the connected account.",
+      description:
+        "Send an email from the connected account. Pass threadId to add the message to an " +
+        "existing conversation instead of starting a new one. threadId only controls which " +
+        "thread Gmail files the message under: per-message reply threading (In-Reply-To and " +
+        "References headers) remains the caller's responsibility.",
       inputSchema: {
         to: z.union([z.string(), z.array(z.string())]).describe("Recipient email(s)."),
         subject: z.string().describe("Subject line."),
@@ -322,6 +326,14 @@ export function registerTools(server: McpServer): void {
           ),
         from: z.string().optional().describe("Send-as alias or address to set as the From header."),
         replyTo: z.string().optional().describe("Address to set as the Reply-To header."),
+        threadId: z
+          .string()
+          .optional()
+          .describe(
+            "Gmail thread ID to add this message to, joining an existing conversation. Omit to " +
+              "start a new thread. This does not set In-Reply-To/References; set those yourself " +
+              "for per-message reply threading.",
+          ),
         account: z.string().optional().describe("Account nickname to use."),
       },
     },
@@ -336,6 +348,7 @@ export function registerTools(server: McpServer): void {
       driveFileIds,
       from,
       replyTo,
+      threadId,
       account,
     }) =>
       withClient(account, (client) =>
@@ -350,6 +363,7 @@ export function registerTools(server: McpServer): void {
           driveFileIds,
           from,
           replyTo,
+          threadId,
         }),
       ),
   );
