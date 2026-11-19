@@ -183,7 +183,8 @@ Add or remove labels on a message (mark read/unread, star, archive…).
 
 Reply to an existing message inside its thread, preserving threading headers. The
 reply goes to the message's `Reply-To` address when it sets one (mailing lists,
-support desks), otherwise to `From`.
+support desks), otherwise to `From`. Set `replyAll` to CC everyone on the
+original message, or pass `cc`/`bcc` explicitly.
 
 | arg | type | notes |
 | --- | --- | --- |
@@ -195,6 +196,9 @@ support desks), otherwise to `From`.
 | `driveFileIds` | string[] | optional. Drive files by ID (under Gmail limit). |
 | `from` | string | optional. Send-as alias or address for the From header. |
 | `replyTo` | string | optional. Address for the Reply-To header. |
+| `cc` | string \| string[] | optional. Explicit CC, merged with `replyAll` results. |
+| `bcc` | string \| string[] | optional. Explicit BCC. Never derived. |
+| `replyAll` | boolean | optional. CC the original `To` + `Cc`, minus this account. |
 
 ### `google_gmail_list_attachments`
 

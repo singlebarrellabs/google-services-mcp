@@ -490,6 +490,20 @@ export function registerTools(server: McpServer): void {
           ),
         from: z.string().optional().describe("Send-as alias or address to set as the From header."),
         replyTo: z.string().optional().describe("Address to set as the Reply-To header."),
+        cc: z
+          .union([z.string(), z.array(z.string())])
+          .optional()
+          .describe("Explicit CC recipient(s), merged with any replyAll-derived list."),
+        bcc: z
+          .union([z.string(), z.array(z.string())])
+          .optional()
+          .describe("Explicit BCC recipient(s). BCC is never derived from the original message."),
+        replyAll: z
+          .boolean()
+          .optional()
+          .describe(
+            "Reply to everyone: derive CC from the original To + Cc, excluding this account.",
+          ),
         account: z.string().optional().describe("Account nickname to use."),
       },
     },
@@ -502,6 +516,9 @@ export function registerTools(server: McpServer): void {
       driveFileIds,
       from,
       replyTo,
+      cc,
+      bcc,
+      replyAll,
       account,
     }) =>
       withClient(account, (client) =>
@@ -514,6 +531,9 @@ export function registerTools(server: McpServer): void {
           driveFileIds,
           from,
           replyTo,
+          cc,
+          bcc,
+          replyAll,
         }),
       ),
   );

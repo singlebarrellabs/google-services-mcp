@@ -13,6 +13,9 @@ const mockMessages = {
   delete: vi.fn(),
   attachments: { get: vi.fn() },
 };
+const mockProfile = {
+  getProfile: vi.fn(),
+};
 const mockThreads = {
   get: vi.fn(),
   list: vi.fn(),
@@ -43,6 +46,7 @@ vi.mock("googleapis", () => ({
   google: {
     gmail: vi.fn(() => ({
       users: {
+        getProfile: mockProfile.getProfile,
         messages: mockMessages,
         threads: mockThreads,
         drafts: mockDrafts,
@@ -2134,6 +2138,174 @@ describe("replyGmail target", () => {
     const raw = decodeRaw(mockMessages.send.mock.calls[0][0].requestBody.raw);
     expect(raw).toContain("To: Author <author@example.com>");
     expect(raw).not.toContain("To: List <list@example.com>");
+  });
+});
+
+describe("replyGmail cc and replyAll", () => {
+  const ownAddress = "me@example.com";
+
+  function mockOriginal(headers: Array<{ name: string; value: string }>) {
+    mockMessages.get.mockResolvedValue({
+      data: {
+        payload: {
+          headers: [
+            ...headers,
+            { name: "Subject", value: "Hi" },
+            { name: "Message-ID", value: "<m@x>" },
+          ],
+        },
+      },
+    });
+    mockMessages.send.mockResolvedValue({ data: { id: "r1", threadId: "t1" } });
+  }
+
+  function sentRaw(): string {
+    return decodeRaw(mockMessages.send.mock.calls[0][0].requestBody.raw);
+  }
+
+  function hasHeader(raw: string, name: string): boolean {
+    return raw.split("\r\n").some((line) => line.startsWith(`${name}:`));
+  }
+
+  beforeEach(() => {
+    mockProfile.getProfile.mockResolvedValue({ data: { emailAddress: ownAddress } });
+  });
+
+  it("replyAll derives Cc from the original To header", async () => {
+    mockOriginal([
+      { name: "From", value: "p@example.com" },
+      { name: "To", value: "g@example.com" },
+    ]);
+
+    await replyGmail(client, { threadId: "t1", messageId: "m1", body: "ok", replyAll: true });
+
+    const raw = sentRaw();
+    expect(raw).toContain("To: p@example.com");
+    expect(raw).toContain("Cc: g@example.com");
+    expect(mockProfile.getProfile).toHaveBeenCalledWith({ userId: "me" });
+  });
+
+  it("does not derive Cc without replyAll", async () => {
+    mockOriginal([
+      { name: "From", value: "p@example.com" },
+      { name: "To", value: "g@example.com" },
+      { name: "Cc", value: "other@example.com" },
+    ]);
+
+    await replyGmail(client, { threadId: "t1", messageId: "m1", body: "ok" });
+
+    const raw = sentRaw();
+    expect(raw).toContain("To: p@example.com");
+    expect(hasHeader(raw, "Cc")).toBe(false);
+    // No profile round-trip when replyAll is off.
+    expect(mockProfile.getProfile).not.toHaveBeenCalled();
+  });
+
+  it("does not Cc the account's own address when replyAll is on", async () => {
+    mockOriginal([
+      { name: "From", value: "p@example.com" },
+      { name: "To", value: "g@example.com" },
+      { name: "Cc", value: `Me <${ownAddress}>, Other <o@example.com>` },
+    ]);
+
+    await replyGmail(client, { threadId: "t1", messageId: "m1", body: "ok", replyAll: true });
+
+    const raw = sentRaw();
+    expect(raw).toContain("Cc: g@example.com, Other <o@example.com>");
+    expect(raw).not.toContain(ownAddress);
+  });
+
+  it("emits no Cc header when replyAll has nothing to add", async () => {
+    mockOriginal([
+      { name: "From", value: "p@example.com" },
+      { name: "To", value: ownAddress },
+    ]);
+
+    await replyGmail(client, { threadId: "t1", messageId: "m1", body: "ok", replyAll: true });
+
+    expect(hasHeader(sentRaw(), "Cc")).toBe(false);
+  });
+
+  it("does not split a display name that contains a comma", async () => {
+    mockOriginal([
+      { name: "From", value: "p@example.com" },
+      { name: "To", value: '"Doe, Jane" <Jane@Example.com>' },
+      { name: "Cc", value: "jane@example.com, Other <o@example.com>" },
+    ]);
+
+    await replyGmail(client, { threadId: "t1", messageId: "m1", body: "ok", replyAll: true });
+
+    // Deduped case-insensitively on the bare address, first spelling kept.
+    expect(sentRaw()).toContain('Cc: "Doe, Jane" <Jane@Example.com>, Other <o@example.com>');
+  });
+
+  it("merges explicit cc on top of the derived list and passes bcc through", async () => {
+    mockOriginal([
+      { name: "From", value: "p@example.com" },
+      { name: "To", value: "g@example.com" },
+    ]);
+
+    await replyGmail(client, {
+      threadId: "t1",
+      messageId: "m1",
+      body: "ok",
+      replyAll: true,
+      cc: ["extra@example.com"],
+      bcc: "blind@example.com",
+    });
+
+    const raw = sentRaw();
+    expect(raw).toContain("Cc: g@example.com, extra@example.com");
+    expect(raw).toContain("Bcc: blind@example.com");
+  });
+
+  it("never derives a Bcc header", async () => {
+    mockOriginal([
+      { name: "From", value: "p@example.com" },
+      { name: "To", value: "g@example.com" },
+      { name: "Cc", value: "other@example.com" },
+    ]);
+
+    await replyGmail(client, { threadId: "t1", messageId: "m1", body: "ok", replyAll: true });
+
+    const raw = sentRaw();
+    expect(hasHeader(raw, "Bcc")).toBe(false);
+    expect(raw).toContain("Cc: g@example.com, other@example.com");
+  });
+
+  it("excludes the From alias from the derived Cc list", async () => {
+    mockOriginal([
+      { name: "From", value: "p@example.com" },
+      { name: "To", value: "Group <alias@example.com>" },
+    ]);
+
+    await replyGmail(client, {
+      threadId: "t1",
+      messageId: "m1",
+      body: "ok",
+      replyAll: true,
+      from: "Team <alias@example.com>",
+    });
+
+    const raw = sentRaw();
+    expect(raw).not.toContain("Cc:");
+    expect(raw).toContain("From: Team <alias@example.com>");
+  });
+
+  it("sends an explicit cc without replyAll", async () => {
+    mockOriginal([
+      { name: "From", value: "p@example.com" },
+      { name: "To", value: "g@example.com" },
+    ]);
+
+    await replyGmail(client, {
+      threadId: "t1",
+      messageId: "m1",
+      body: "ok",
+      cc: "extra@example.com",
+    });
+
+    expect(sentRaw()).toContain("Cc: extra@example.com");
   });
 });
 
