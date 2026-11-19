@@ -69,6 +69,12 @@ export interface ReplyGmailOptions {
   from?: string;
   /** Address to set as the Reply-To header. */
   replyTo?: string;
+  /** Explicit Cc recipients, merged on top of any replyAll-derived list. */
+  cc?: string | string[];
+  /** Explicit Bcc recipients. Bcc is never derived from the original message. */
+  bcc?: string | string[];
+  /** Derive Cc from the original To + Cc headers, minus this account and `from`. */
+  replyAll?: boolean;
 }
 
 export interface GmailMessageSummary {
@@ -110,6 +116,67 @@ function headerValue(
 function joinRecipients(r: string | string[] | undefined): string {
   if (!r) return "";
   return Array.isArray(r) ? r.join(", ") : r;
+}
+
+/**
+ * Split a recipient header into individual addresses. A bare comma is not a
+ * reliable separator: display names contain them (`"Doe, Jane" <j@x>`), so
+ * commas inside quotes or angle brackets never split.
+ */
+function splitAddressList(value: string | undefined): string[] {
+  if (!value) return [];
+  const out: string[] = [];
+  let current = "";
+  let quoted = false;
+  let angle = 0;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (ch === "\\" && quoted && i + 1 < value.length) {
+      current += ch + value[i + 1];
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      quoted = !quoted;
+      current += ch;
+      continue;
+    }
+    if (!quoted) {
+      if (ch === "<") {
+        angle++;
+      } else if (ch === ">" && angle > 0) {
+        angle--;
+      } else if (ch === "," && angle === 0) {
+        out.push(current);
+        current = "";
+        continue;
+      }
+    }
+    current += ch;
+  }
+  out.push(current);
+  return out.map((s) => s.trim()).filter(Boolean);
+}
+
+/** Lowercased bare address: `"Doe, Jane" <J@X>` becomes `j@x`. */
+function bareAddress(address: string): string {
+  const angled = /<([^>]*)>/.exec(address);
+  return (angled?.[1] ?? address).trim().toLowerCase();
+}
+
+/** Keep the first spelling of each address, dropping `exclude` and duplicates. */
+function uniqueAddresses(lists: string[][], exclude: Set<string> = new Set()): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const list of lists) {
+    for (const address of list) {
+      const bare = bareAddress(address);
+      if (!bare || exclude.has(bare) || seen.has(bare)) continue;
+      seen.add(bare);
+      out.push(address);
+    }
+  }
+  return out;
 }
 
 /** Build a raw RFC2822 message. Not base64-encoded yet. */
@@ -537,6 +604,7 @@ function parseHeaders(headers: Array<{ name?: string | null; value?: string | nu
     from: headerValue(headers, "From"),
     replyTo: headerValue(headers, "Reply-To"),
     to: headerValue(headers, "To"),
+    cc: headerValue(headers, "Cc"),
     subject: headerValue(headers, "Subject"),
     date: headerValue(headers, "Date"),
     messageId: headerValue(headers, "Message-ID"),
@@ -705,13 +773,33 @@ export async function replyGmail(client: Auth.OAuth2Client, opts: ReplyGmailOpti
   const headers = orig.payload?.headers ?? [];
   const parsed = parseHeaders(headers);
 
+  const to = parsed.replyTo || parsed.from;
+  // Gmail's reply-all: original To + Cc, minus this account (and the send-as
+  // alias, which is also "me") and minus anyone already in To.
+  const exclude = new Set(splitAddressList(to).map(bareAddress));
+  let derivedCc: string[] = [];
+  if (opts.replyAll) {
+    const profile = await gmail.users.getProfile({ userId: "me" });
+    if (profile.data.emailAddress) exclude.add(bareAddress(profile.data.emailAddress));
+    if (opts.from) exclude.add(bareAddress(opts.from));
+    derivedCc = uniqueAddresses(
+      [splitAddressList(parsed.to), splitAddressList(parsed.cc)],
+      exclude,
+    );
+  }
+  // Explicit cc is merged on top of the derived list (and deduped against it),
+  // but is never silently dropped for being the account's own address.
+  const cc = uniqueAddresses([derivedCc, splitAddressList(joinRecipients(opts.cc))]);
+
   const subject = (
     parsed.subject.startsWith("Re:") ? parsed.subject : `Re: ${parsed.subject}`
   ).replace(/[\r\n]+/g, " ");
   const raw = toBase64Url(
     await buildRawEmail(
       {
-        to: parsed.replyTo || parsed.from,
+        to,
+        cc,
+        bcc: opts.bcc,
         subject,
         body: opts.body,
         bodyType: opts.bodyType,
