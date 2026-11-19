@@ -216,9 +216,12 @@ carries a `kind` discriminating which payload it holds:
 | `saved` | `savedTo` | `saveToPath` was passed; bytes are on disk |
 
 Text that is not valid UTF-8 (Latin-1, UTF-16) comes back as `base64` rather
-than being mangled into replacement characters. An `attachmentId` or `partId`
-that is not on the message is an error: the result never falls back to a stale
-ID or labels unknown bytes as `application/octet-stream`. Attachments over 6 MB are
+than being mangled into replacement characters. Gmail rotates `attachmentId`
+on every fetch, so `partId` is the stable key — an empty `partId` means the
+attachment sits on the message root part. A lookup that matches no part falls
+back to the message's only attachment; with several parts it is an error that
+names the known parts (root shown as `<root>`) rather than guessing. The result
+never labels unknown bytes as `application/octet-stream`. Attachments over 6 MB are
 rejected inline — pass `saveToPath` to write the raw bytes to a local file
 instead. The path must be inside the save root (`GOOGLE_MCP_SAVE_ROOT`, default
 `~/Downloads`).
@@ -238,7 +241,10 @@ data is an error rather than an empty download.
 | --- | --- | --- |
 | `id` | string | required. Message ID. |
 | `attachmentId` | string | required. From `list_attachments`. |
-| `partId` | string | optional. Stable part ID from `list_attachments` (preferred). |
+| `partId` | string | optional. Stable part ID; `""` means the root part. |
+| `filename` | string | optional. From `list_attachments`; disambiguates a rotated `attachmentId`. |
+| `mimeType` | string | optional. From `list_attachments`; narrows the filename match. |
+| `size` | number | optional. From `list_attachments`; narrows the filename match. |
 | `saveToPath` | string | optional. Local path inside the save root to write the raw bytes to. |
 | `maxBytes` | number | optional, default 6291456. Caps raw and framed size; ignored when saving. |
 

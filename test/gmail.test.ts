@@ -2147,7 +2147,13 @@ describe("getGmailAttachment lookups", () => {
               partId: "0.1",
               filename: "a.pdf",
               mimeType: "application/pdf",
-              body: { attachmentId: "FRESH", size: 1 },
+              body: { attachmentId: "FRESH1", size: 1 },
+            },
+            {
+              partId: "0.2",
+              filename: "b.pdf",
+              mimeType: "application/pdf",
+              body: { attachmentId: "FRESH2", size: 2 },
             },
           ],
         },
@@ -2158,6 +2164,153 @@ describe("getGmailAttachment lookups", () => {
       /not found on message m1.*0\.1/s,
     );
     expect(mockMessages.attachments.get).not.toHaveBeenCalled();
+  });
+
+  it("matches the root part when partId is the empty string", async () => {
+    mockMessages.get.mockResolvedValue({
+      data: {
+        payload: {
+          partId: "",
+          filename: "report.zip",
+          mimeType: "application/zip",
+          body: { attachmentId: "FRESHROOT", size: 3 },
+        },
+      },
+    });
+    mockMessages.attachments.get.mockResolvedValue({
+      data: { data: Buffer.from("zip").toString("base64url"), size: 3 },
+    });
+
+    const result = await getGmailAttachment(client, {
+      id: "m1",
+      attachmentId: "STALE",
+      partId: "",
+    });
+
+    expect(mockMessages.attachments.get).toHaveBeenCalledWith({
+      userId: "me",
+      messageId: "m1",
+      id: "FRESHROOT",
+    });
+    expect(result).toMatchObject({ partId: "", filename: "report.zip" });
+  });
+
+  it("resolves a single attachment when the stored attachmentId rotated and no partId is given", async () => {
+    // Gmail rotates body.attachmentId on every messages.get, so a lone part is
+    // unambiguous even when the caller's id no longer matches.
+    mockMessages.get.mockResolvedValue({
+      data: {
+        payload: {
+          partId: "",
+          filename: "report.zip",
+          mimeType: "application/zip",
+          body: { attachmentId: "FRESHROOT", size: 3 },
+        },
+      },
+    });
+    mockMessages.attachments.get.mockResolvedValue({
+      data: { data: Buffer.from("zip").toString("base64url"), size: 3 },
+    });
+
+    const result = await getGmailAttachment(client, { id: "m1", attachmentId: "STALE" });
+
+    expect(mockMessages.attachments.get).toHaveBeenCalledWith({
+      userId: "me",
+      messageId: "m1",
+      id: "FRESHROOT",
+    });
+    expect(result).toMatchObject({ partId: "", filename: "report.zip", size: 3 });
+  });
+
+  it("explains rotation and names known parts when a stale id is ambiguous", async () => {
+    mockMessages.get.mockResolvedValue({
+      data: {
+        payload: {
+          parts: [
+            {
+              partId: "",
+              filename: "root.zip",
+              mimeType: "application/zip",
+              body: { attachmentId: "FRESHROOT", size: 1 },
+            },
+            {
+              partId: "1",
+              filename: "data.csv",
+              mimeType: "text/csv",
+              body: { attachmentId: "FRESH1", size: 2 },
+            },
+          ],
+        },
+      },
+    });
+
+    const error = await getGmailAttachment(client, { id: "m1", attachmentId: "STALE" }).catch(
+      (e: unknown) => e,
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    const message = (error as Error).message;
+    expect(message).toMatch(/not found on message m1/);
+    // The empty partId belongs to the root part; printing it as "" looks like a
+    // parse failure, so it is rendered as <root>.
+    expect(message).toContain("<root>");
+    expect(message).toContain("1");
+    expect(message).toMatch(/rotates/);
+    expect(message).toMatch(/partId/);
+    // Attachments exist — claiming none is a lie that hides the real problem.
+    expect(message).not.toMatch(/reports no attachments/);
+    expect(mockMessages.attachments.get).not.toHaveBeenCalled();
+  });
+
+  it("uses filename, mimeType, and size to pick between rotated ids", async () => {
+    mockMessages.get.mockResolvedValue({
+      data: {
+        payload: {
+          parts: [
+            {
+              partId: "0.1",
+              filename: "a.pdf",
+              mimeType: "application/pdf",
+              body: { attachmentId: "FRESHA", size: 1 },
+            },
+            {
+              partId: "0.2",
+              filename: "b.pdf",
+              mimeType: "application/pdf",
+              body: { attachmentId: "FRESHB", size: 2 },
+            },
+          ],
+        },
+      },
+    });
+    mockMessages.attachments.get.mockResolvedValue({
+      data: { data: Buffer.from("%PDF").toString("base64url"), size: 4 },
+    });
+
+    const result = await getGmailAttachment(client, {
+      id: "m1",
+      attachmentId: "STALE",
+      filename: "b.pdf",
+      mimeType: "application/pdf",
+      size: 2,
+    });
+
+    expect(mockMessages.attachments.get).toHaveBeenCalledWith({
+      userId: "me",
+      messageId: "m1",
+      id: "FRESHB",
+    });
+    expect(result).toMatchObject({ partId: "0.2", filename: "b.pdf" });
+  });
+
+  it("still reports no attachments when the message genuinely has none", async () => {
+    mockMessages.get.mockResolvedValue({
+      data: { payload: { mimeType: "text/plain", body: { data: "aGVsbG8=" } } },
+    });
+
+    await expect(getGmailAttachment(client, { id: "m1", attachmentId: "STALE" })).rejects.toThrow(
+      /reports no attachments/,
+    );
   });
 });
 
