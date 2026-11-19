@@ -35,6 +35,8 @@ export interface SendGmailOptions {
   attachments?: GmailAttachmentInput[];
   /** Drive file IDs to attach by reference (downloaded under the Gmail limit). */
   driveFileIds?: string[];
+  /** Gmail thread ID to add this message to. Omitted, Gmail starts a new thread. */
+  threadId?: string;
 }
 
 export interface ListGmailOptions {
@@ -544,9 +546,24 @@ function parseHeaders(headers: Array<{ name?: string | null; value?: string | nu
 
 /** Send an email. Returns { id, threadId }. */
 export async function sendGmail(client: Auth.OAuth2Client, opts: SendGmailOptions) {
+  // An empty ID is never a valid thread: it would either be ignored (a new
+  // conversation silently started) or rejected by the API with a bare 400.
+  const threadId = opts.threadId?.trim();
+  if (threadId === "") {
+    throw new Error(
+      "threadId must not be empty. Pass a Gmail thread ID (e.g. from google_gmail_threads_list " +
+        "or a message's threadId) to join an existing conversation, or omit threadId to start a " +
+        "new one.",
+    );
+  }
   const raw = toBase64Url(await buildRawEmail(opts, client));
   const gmail = google.gmail({ version: "v1", auth: client });
-  const res = await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+  const res = await gmail.users.messages.send({
+    userId: "me",
+    // Omit the key entirely when absent: `threadId: undefined` is not the same
+    // request body, and the tests pin that.
+    requestBody: { raw, ...(threadId ? { threadId } : {}) },
+  });
   return res.data as { id: string; threadId?: string };
 }
 
