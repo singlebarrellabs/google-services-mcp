@@ -126,10 +126,15 @@ a long non-ASCII subject is folded into several RFC 2047 encoded-words.
 | `driveFileIds` | string[] | optional. Drive files by ID (under Gmail limit). |
 | `from` | string | optional. Send-as alias or address for the From header. |
 | `replyTo` | string | optional. Address for the Reply-To header. |
+| `threadId` | string | optional. Thread ID to join an existing conversation. |
 
 Google-native Drive files (Docs, Sheets, Slides, …) cannot be attached: they
 have no raw bytes, so the send is refused and names the file. Export the file
 (`google_drive_export`) and attach the exported copy, or share the link.
+
+`threadId` only decides which conversation Gmail files the message under. It
+does not set `In-Reply-To`/`References`, so per-message reply threading stays
+the caller's job (`google_gmail_reply` does both for a known message).
 
 ### `google_gmail_list`
 

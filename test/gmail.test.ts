@@ -258,6 +258,42 @@ describe("sendGmail", () => {
       `Subject: =?UTF-8?B?${Buffer.from(`Re: ${subject}`, "utf8").toString("base64")}?=`,
     );
   });
+
+  // Issue #227: a plain send could not join an existing conversation.
+  it("sends into an existing thread when threadId is given", async () => {
+    mockMessages.send.mockResolvedValue({ data: { id: "m6", threadId: "t1" } });
+    const result = await sendGmail(client, {
+      to: "bob@example.com",
+      subject: "Re: Hello",
+      body: "Following up",
+      threadId: "t1",
+    });
+    expect(mockMessages.send).toHaveBeenCalledTimes(1);
+    expect(mockMessages.send.mock.calls[0][0].requestBody.threadId).toBe("t1");
+    expect(mockMessages.send.mock.calls[0][0].requestBody.raw).toEqual(expect.any(String));
+    expect(result).toEqual({ id: "m6", threadId: "t1" });
+  });
+
+  it("omits threadId from the request body when it is not given", async () => {
+    mockMessages.send.mockResolvedValue({ data: { id: "m7" } });
+    await sendGmail(client, { to: "bob@example.com", subject: "S", body: "B" });
+    expect(mockMessages.send).toHaveBeenCalledWith({
+      userId: "me",
+      requestBody: { raw: expect.any(String) },
+    });
+    // Not merely undefined: the key must be absent so the body is unchanged.
+    expect("threadId" in mockMessages.send.mock.calls[0][0].requestBody).toBe(false);
+  });
+
+  it("rejects a blank threadId before calling the API", async () => {
+    await expect(
+      sendGmail(client, { to: "bob@example.com", subject: "S", body: "B", threadId: "   " }),
+    ).rejects.toThrow(/threadId/i);
+    await expect(
+      sendGmail(client, { to: "bob@example.com", subject: "S", body: "B", threadId: "" }),
+    ).rejects.toThrow(/threadId/i);
+    expect(mockMessages.send).not.toHaveBeenCalled();
+  });
 });
 
 describe("sendGmail with Drive attachments", () => {
