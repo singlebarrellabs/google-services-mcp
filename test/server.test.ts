@@ -3,6 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGmailMessages = { send: vi.fn(), list: vi.fn(), get: vi.fn(), modify: vi.fn() };
+const mockGmailAttachments = { get: vi.fn() };
 const mockEvents = { list: vi.fn(), insert: vi.fn() };
 const mockFiles = { list: vi.fn() };
 const mockTaskItems = { list: vi.fn(), insert: vi.fn() };
@@ -15,7 +16,9 @@ const mockFormsResponses = { list: vi.fn() };
 
 vi.mock("googleapis", () => ({
   google: {
-    gmail: vi.fn(() => ({ users: { messages: mockGmailMessages } })),
+    gmail: vi.fn(() => ({
+      users: { messages: { ...mockGmailMessages, attachments: mockGmailAttachments } },
+    })),
     calendar: vi.fn(() => ({
       events: mockEvents,
       calendarList: { list: vi.fn().mockResolvedValue({ data: {} }) },
@@ -236,6 +239,19 @@ describe("end-to-end tool calls", () => {
     );
   });
 
+  it("google_gmail_send forwards threadId to join an existing conversation", async () => {
+    await setup();
+    mockGmailMessages.send.mockResolvedValue({ data: { id: "m2", threadId: "t9" } });
+    const result = await callTool("google_gmail_send", {
+      to: "a@example.com",
+      subject: "Re: Hi",
+      body: "Hello again",
+      threadId: "t9",
+    });
+    expect(result).toEqual({ id: "m2", threadId: "t9" });
+    expect(mockGmailMessages.send.mock.calls[0][0].requestBody.threadId).toBe("t9");
+  });
+
   it("google_gmail_list maps results", async () => {
     await setup();
     mockGmailMessages.list.mockResolvedValue({
@@ -243,6 +259,46 @@ describe("end-to-end tool calls", () => {
     });
     const result = await callTool("google_gmail_list", { query: "from:bob", maxResults: 5 });
     expect(result).toEqual({ items: [{ id: "m1", threadId: "t1", snippet: "s" }] });
+  });
+
+  it("google_gmail_get_attachment forwards filename metadata for rotated ids", async () => {
+    await setup();
+    mockGmailMessages.get.mockResolvedValue({
+      data: {
+        payload: {
+          parts: [
+            {
+              partId: "0.1",
+              filename: "a.pdf",
+              mimeType: "application/pdf",
+              body: { attachmentId: "FRESH1", size: 1 },
+            },
+            {
+              partId: "0.2",
+              filename: "b.pdf",
+              mimeType: "application/pdf",
+              body: { attachmentId: "FRESH2", size: 2 },
+            },
+          ],
+        },
+      },
+    });
+    mockGmailAttachments.get.mockResolvedValue({
+      data: { data: Buffer.from("pd").toString("base64url"), size: 2 },
+    });
+
+    const result = await callTool("google_gmail_get_attachment", {
+      id: "m1",
+      attachmentId: "STALE",
+      filename: "b.pdf",
+    });
+
+    expect(mockGmailAttachments.get).toHaveBeenCalledWith({
+      userId: "me",
+      messageId: "m1",
+      id: "FRESH2",
+    });
+    expect(result).toMatchObject({ partId: "0.2", filename: "b.pdf", size: 2 });
   });
 
   it("google_calendar_create_meet creates a meeting with conference data", async () => {

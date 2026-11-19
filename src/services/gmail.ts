@@ -35,6 +35,8 @@ export interface SendGmailOptions {
   attachments?: GmailAttachmentInput[];
   /** Drive file IDs to attach by reference (downloaded under the Gmail limit). */
   driveFileIds?: string[];
+  /** Gmail thread ID to add this message to. Omitted, Gmail starts a new thread. */
+  threadId?: string;
 }
 
 export interface ListGmailOptions {
@@ -612,9 +614,24 @@ function parseHeaders(headers: Array<{ name?: string | null; value?: string | nu
 
 /** Send an email. Returns { id, threadId }. */
 export async function sendGmail(client: Auth.OAuth2Client, opts: SendGmailOptions) {
+  // An empty ID is never a valid thread: it would either be ignored (a new
+  // conversation silently started) or rejected by the API with a bare 400.
+  const threadId = opts.threadId?.trim();
+  if (threadId === "") {
+    throw new Error(
+      "threadId must not be empty. Pass a Gmail thread ID (e.g. from google_gmail_threads_list " +
+        "or a message's threadId) to join an existing conversation, or omit threadId to start a " +
+        "new one.",
+    );
+  }
   const raw = toBase64Url(await buildRawEmail(opts, client));
   const gmail = google.gmail({ version: "v1", auth: client });
-  const res = await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+  const res = await gmail.users.messages.send({
+    userId: "me",
+    // Omit the key entirely when absent: `threadId: undefined` is not the same
+    // request body, and the tests pin that.
+    requestBody: { raw, ...(threadId ? { threadId } : {}) },
+  });
   return res.data as { id: string; threadId?: string };
 }
 
@@ -896,6 +913,54 @@ function collectAttachments(
   return out;
 }
 
+/** A partId of "" is Gmail's root part; print it as something a reader can act on. */
+function labelPart(partId: string | undefined): string {
+  if (partId === "") return "<root>";
+  return partId ?? "<unknown>";
+}
+
+function describeAttachmentPart(part: GmailAttachmentInfo): string {
+  const size = part.size === undefined ? "" : `, ${part.size} bytes`;
+  return `${labelPart(part.partId)} (${part.filename}, ${part.mimeType}${size})`;
+}
+
+/**
+ * Pick the attachment the caller meant. `partId` is stable, so it is tried
+ * first; `attachmentId` rotates on every `messages.get`, so it only works when
+ * the caller's id happens to be from the same fetch. Beyond that, a lone
+ * attachment is unambiguous, and metadata from `list_attachments` can separate
+ * several parts. Guessing is never allowed: an unmatched id is an error.
+ */
+function resolveAttachment(
+  atts: GmailAttachmentInfo[],
+  opts: {
+    attachmentId: string;
+    partId?: string;
+    filename?: string;
+    mimeType?: string;
+    size?: number;
+  },
+): GmailAttachmentInfo | undefined {
+  // Match on presence, not truthiness: partId "" is the root part.
+  if (opts.partId !== undefined) {
+    const byPartId = atts.find((a) => a.partId === opts.partId);
+    if (byPartId !== undefined) return byPartId;
+  }
+  const byAttachmentId = atts.find((a) => a.id === opts.attachmentId);
+  if (byAttachmentId !== undefined) return byAttachmentId;
+  if (atts.length === 1) return atts[0];
+  if (opts.filename !== undefined) {
+    const byMetadata = atts.find(
+      (a) =>
+        a.filename === opts.filename &&
+        (opts.mimeType === undefined || a.mimeType === opts.mimeType) &&
+        (opts.size === undefined || a.size === opts.size),
+    );
+    if (byMetadata !== undefined) return byMetadata;
+  }
+  return undefined;
+}
+
 function isTextMime(mime: string): boolean {
   return (
     mime.startsWith("text/") ||
@@ -921,6 +986,12 @@ export async function getGmailAttachment(
   opts: GetGmailOptions & {
     attachmentId: string;
     partId?: string;
+    /** Filename from list_attachments, used to disambiguate a rotated attachmentId. */
+    filename?: string;
+    /** MIME type from list_attachments, paired with filename for disambiguation. */
+    mimeType?: string;
+    /** Size in bytes from list_attachments, paired with filename for disambiguation. */
+    size?: number;
     /** Write raw bytes here instead of returning them inline. */
     saveToPath?: string;
     /** Inline payload cap in raw bytes (default 6 MB). Ignored when saving to disk. */
@@ -934,20 +1005,19 @@ export async function getGmailAttachment(
   const msg = (await gmail.users.messages.get({ userId: "me", id: opts.id, format: "full" })).data;
   const atts = collectAttachments(msg.payload);
   // Gmail rotates body.attachmentId on every messages.get call, so a caller's
-  // stored attachmentId may no longer match. Match by the stable partId first,
-  // then fall back to attachmentId for backward compatibility.
-  const part =
-    (opts.partId ? atts.find((a) => a.partId === opts.partId) : undefined) ??
-    atts.find((a) => a.id === opts.attachmentId);
+  // stored attachmentId may no longer match. resolveAttachment tries the stable
+  // partId (including "" for the root part), then the id, then a lone part.
+  const part = resolveAttachment(atts, opts);
   if (part === undefined) {
-    const known = atts
-      .map((a) => a.partId)
-      .filter((id): id is string => id !== undefined)
-      .join(", ");
+    const known = atts.map(describeAttachmentPart).join(", ");
     throw new Error(
       `Attachment not found on message ${opts.id} (attachmentId ${opts.attachmentId}` +
-        `${opts.partId !== undefined ? `, partId ${opts.partId}` : ""}). ` +
-        (known.length > 0 ? `Known partIds: ${known}.` : "The message reports no attachments."),
+        `${opts.partId !== undefined ? `, partId ${labelPart(opts.partId)}` : ""}). ` +
+        (atts.length > 0
+          ? "Gmail rotates attachmentId on every messages.get, so a stored id can stop matching; " +
+            "pass the stable partId from list_attachments. " +
+            `Known parts: ${known}.`
+          : "The message reports no attachments."),
     );
   }
   const filename = part.filename;
