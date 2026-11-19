@@ -554,13 +554,33 @@ export function registerTools(server: McpServer): void {
         "Download a single attachment by message ID and attachment ID. Text-like files are returned decoded as text; binary files as base64. Attachments that would produce an inline result over 6 MB are rejected — pass saveToPath to write the raw bytes to a local file instead. The limit is measured on the JSON-RPC frame, not the raw bytes.",
       inputSchema: {
         id: z.string().describe("Message ID."),
-        attachmentId: z.string().describe("Attachment ID (from list_attachments)."),
+        attachmentId: z
+          .string()
+          .describe(
+            "Attachment ID (from list_attachments). Gmail rotates it on every fetch, so pass partId when you can.",
+          ),
         partId: z
           .string()
           .optional()
           .describe(
-            "Stable part ID (from list_attachments); preferred over attachmentId for lookup.",
+            'Stable part ID (from list_attachments); preferred over attachmentId for lookup. Pass "" for an attachment on the message root part.',
           ),
+        filename: z
+          .string()
+          .optional()
+          .describe(
+            "Filename from list_attachments; disambiguates when Gmail has rotated attachmentId.",
+          ),
+        mimeType: z
+          .string()
+          .optional()
+          .describe("MIME type from list_attachments; narrows the filename match."),
+        size: z
+          .number()
+          .int()
+          .nonnegative()
+          .optional()
+          .describe("Size in bytes from list_attachments; narrows the filename match."),
         saveToPath: z
           .string()
           .optional()
@@ -578,9 +598,18 @@ export function registerTools(server: McpServer): void {
         account: z.string().optional().describe("Account nickname to use."),
       },
     },
-    async ({ id, attachmentId, partId, saveToPath, maxBytes, account }) =>
+    async ({ id, attachmentId, partId, filename, mimeType, size, saveToPath, maxBytes, account }) =>
       withClient(account, (client) =>
-        getGmailAttachment(client, { id, attachmentId, partId, saveToPath, maxBytes }),
+        getGmailAttachment(client, {
+          id,
+          attachmentId,
+          partId,
+          filename,
+          mimeType,
+          size,
+          saveToPath,
+          maxBytes,
+        }),
       ),
   );
 
