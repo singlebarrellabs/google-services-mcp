@@ -327,6 +327,15 @@ npm allows **one trusted publisher per package** and validates the calling
 workflow's filename — all channels run from the same `ci.yml` file.
 No `NPM_TOKEN` secret is required.
 
+## Admin plane
+
+Managing the tenant — who exists, what happened, what is licensed, legal holds,
+offboarding — is a different surface and a different server:
+[`google-workspace-admin-mcp`](https://github.com/singlebarrellabs/google-workspace-admin-mcp)
+(`npx google-workspace-admin-mcp`). It uses admin OAuth only and has no
+user-content scopes, so it cannot read the mail, files or calendars this server
+works with.
+
 ## License
 
 MIT
