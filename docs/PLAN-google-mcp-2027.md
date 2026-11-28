@@ -20,9 +20,11 @@ Two facts drive every decision below.
 1. **The user owns the project.** Both packages ship BYO OAuth client, so the
    tier, the quota, and the compliance exposure land on the person running it.
    The maintainer's obligation is disclosure, not procurement.
-2. **Google's Gmail MCP has no send tool.** Ten tools, draft-first. There is no
-   compliant replacement for `google_gmail_send`, `google_gmail_reply`, or
-   attachments, so no bridge can preserve those tools.
+2. **Google's documentation lags the endpoints.** The published Gmail MCP
+   reference lists ten tools; the live `gmailmcp` endpoint enumerated on
+   2026-11-27 exposes 30, including `send_message`, `reply` and `forward`.
+   Any decision based on the docs pages alone is unsafe. `tools/list` is the
+   authority.
 
 Scope surfaces (134 tools): Gmail 29, Drive 15, Calendar 12, Sheets 13, Slides
 11, Forms 10, Tasks 9, Docs 9, Contacts 6, account 5, YouTube 15.
@@ -31,10 +33,13 @@ Scope surfaces (134 tools): Gmail 29, Drive 15, Calendar 12, Sheets 13, Slides
 
 - **D1.** Documentation first. It is the only certainly-needed work.
 - **D2.** No bridge until a hands-on spike proves the OAuth path works.
-- **D3.** If built, the bridge is a **read-only subset** (about 36 tools), not a
-  134-tool rewrite.
-- **D4.** Gmail send, reply and attachments are documented as having no
-  compliant path. They are never "bridged".
+- **D3.** If built, the bridge starts **read-only** (39 live read-only tools),
+  then adds writes in a second pass. Not a 134-tool rewrite in one go.
+- **D4.** Tools with no Google MCP equivalent keep working on REST and are
+  documented as non-compliant for agent use: Gmail attachments, send-as,
+  vacation; Drive share, permission delete, move, export, restore; Calendar
+  create/update/delete calendar; Contacts create/update/delete; Forms; YouTube.
+  They are never silently "bridged".
 - **D5.** YouTube is out of scope: not a Workspace API, outside the Addendum.
 - **D6.** Admin plane gets documentation only. No code while no Google MCP
   covers those surfaces.
@@ -65,8 +70,9 @@ README is a published file (`files: [dist, README.md, LICENSE]`), so this phase
   Google's quota page and the Workspace AI Tools Addendum.
 - **R-2.** State the agent/REST position plainly: agent use over REST is
   non-compliant from 2027-02-01. One short paragraph, no hedging.
-- **R-3.** State the Gmail gap: Google's MCP offers draft, not send. Name the
-  affected tools (`send`, `reply`, `get_attachment`, `drafts_send`).
+- **R-3.** State the accurate coverage picture: Google's live endpoints expose
+  91 tools across 10 surfaces (39 read-only), Gmail send included. Name the
+  tools that have no equivalent. Do not repeat the docs-page tool counts.
 - **R-4.** Per-service coverage note: which services have a Google MCP and
   which do not. Name YouTube and Forms as having none.
 - **R-5.** Correct the multi-account claim: clients can register the same
@@ -93,6 +99,9 @@ Exit: `npm run lint` green in both repos; diffs are documentation only.
 
 Goal: answer five questions. This is not an implementation task.
 
+- **S-0.** Done 2026-11-27: `tools/list` enumerated on all ten endpoints
+  without auth. 91 tools, 39 read-only. Recorded in
+  `docs/research/google-mcp-spike.md`.
 - **S-1.** Create an agent-flagged OAuth client (Personal mode onboarding) with
   a **fixed** loopback callback port. Record client ID and port; keep the secret
   in an environment variable, never in a file.
@@ -131,7 +140,8 @@ Pass requires all four:
 - The token story is usable by a local proxy (S-6 answered either way, with a
   workaround if per-endpoint).
 - Approvals render, or `/mcp/v1self` is acceptable (S-7 answered).
-- Read coverage justifies the work: at least 25 tools map cleanly.
+- Read coverage justifies the work. The bar is 25 clean mappings; the live
+  enumeration suggests closer to 50, so this is unlikely to block.
 
 Pass means Phase 5. Fail means close the bridge, ship Phases 1 and 4, stop.
 
@@ -154,14 +164,15 @@ Independent of the spike; ships with Phase 1 in one release.
 
 Default stays "all services" so existing installs do not change.
 
-## Phase 5 — Bridge, read-only subset (only if Phase 3 passes; ~2 weeks)
+## Phase 5 — Bridge, read-only first (only if Phase 3 passes; ~2 weeks)
 
-Not started without a green gate. Scope is fixed to read tools; writes stay on
-REST and stay documented as non-compliant for agent use.
+Not started without a green gate. First pass is read tools only (39 live
+read-only tools); writes come second, and only after the read pass ships.
 
 - **B-1.** Transport module: Streamable HTTP MCP client per Google endpoint.
 - **B-2.** Auth: reuse the token store, one credential per account and endpoint.
-- **B-3.** Tool mapping table for the 36 clean mappings, written before code.
+- **B-3.** Tool mapping table, written before code. Live enumeration says
+  roughly 50 clean read mappings plus most Gmail writes.
 - **B-4.** Elicitation passthrough; default to `/mcp/v1self` when the host
   lacks it.
 - **B-5.** Error mapping: Google MCP errors into the existing `err()` shape.
@@ -172,8 +183,8 @@ REST and stay documented as non-compliant for agent use.
   Forms, admin surfaces.
 - **B-10.** Publish the mapping table so users can see what they lose.
 
-Explicit non-goals: write tools, Gmail send, Forms, YouTube, admin surfaces,
-caching of Workspace data, any local index.
+Explicit non-goals in the first pass: write tools, Forms, YouTube, admin
+surfaces, caching of Workspace data, any local index.
 
 ## Phase 6 — Admin package (documentation only)
 
@@ -198,7 +209,11 @@ If Phases 1 and 4 ship together, that is one publish, not two.
 - **K-1. Google's MCP pages mix "Developer Preview" wording with the GA
   announcement.** Spike confirms the real state; revisit before 2027-02-01.
 - **K-2. Google changes the MCP tool surface and breaks a bridge.** Read-only
-  subset keeps the blast radius small; no caching.
+  pass keeps the blast radius small; no caching; mapping table reviewed per
+  release.
+- **K-7. Google's docs understate the endpoints.** The Gmail reference lists
+  ten tools while the live server serves 30. Always enumerate with
+  `tools/list`; never plan from the docs pages.
 - **K-3. OpenCode lacks form elicitation.** Default to `/mcp/v1self`.
 - **K-4. Docs drift as Google extends tiers to more APIs.** Monthly release
   notes check; the review-date line makes staleness visible.

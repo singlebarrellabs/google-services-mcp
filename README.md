@@ -74,15 +74,19 @@ What that means for this server:
   agent obtaining Workspace data is expected to go through a Google MCP. Direct
   REST calls are limited to Standard tier regardless of the tier you choose, so
   Scaled does not buy headroom for this server.
-- **Gmail send has no compliant replacement.** Google's Gmail MCP exposes ten
-  tools and drafting is one of them; sending is not. `google_gmail_send`,
-  `google_gmail_reply`, `google_gmail_drafts_send` and
-  `google_gmail_get_attachment` have no MCP equivalent. Prefer drafting, then
-  sending from Gmail yourself.
-- **Coverage is partial on Google's side.** Google ships MCP servers for Gmail,
-  Drive, Calendar, Docs, Sheets, Slides, Chat, Tasks and People. It does not
-  ship one for Forms. YouTube is not a Workspace API and is outside this
-  policy entirely.
+- **Gmail send is covered on Google's side.** The live `gmailmcp` endpoint
+  exposes `send_message`, `reply`, `forward`, `update_draft`, labels and
+  filters, so nothing here is stranded by policy. Gmail attachments are the
+  exception: Google exposes no attachment tool.
+- **Coverage is wider than Google's docs show.** Google's reference pages list
+  ten Gmail tools; the live endpoint enumerated on 2026-11-27 exposes 30.
+  Live counts: Gmail 30, Drive 15, Calendar 9, Chat 9, Sheets 9, Tasks 9,
+  Slides 4, People 3, Docs 2, Universal Search 1 — 91 tools, 39 read-only.
+- **What has no Google MCP equivalent:** Gmail attachments, send-as and
+  vacation settings; Drive share, permission delete, move, export and restore;
+  Calendar create, update and delete calendar; Contacts create, update and
+  delete; Forms; and YouTube. Those tools cannot be replaced by pointing at
+  Google's servers instead.
 
 Sources: [usage tiers and quotas][tiers] and the
 [Workspace AI Tools Addendum][addendum]. This section was last reviewed on
