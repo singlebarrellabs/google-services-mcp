@@ -28,6 +28,8 @@ const HELP = `google-services-mcp — Google services MCP server
 
 Usage:
   google-services-mcp                 Run the MCP server over stdio
+  google-services-mcp serve [--services gmail,calendar]
+                                      Run with only the named tool families
   google-services-mcp add <name> [--timeout <seconds>]  Add a Google account (opens browser)
   google-services-mcp list            List connected accounts
   google-services-mcp remove <name>   Remove an account

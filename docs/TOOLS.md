@@ -9,6 +9,15 @@ other than letters, digits, `_` and `-` replaced by `_`. `Work Account` and
 `work_account` are the same account, and any spelling that normalizes to it
 works in tool calls.
 
+## Registering a subset
+
+Every tool definition is sent to the client on connect. Pass
+`serve --services <list>` to register only some domains, where each name below
+is the `google_<domain>_` prefix: `account`, `calendar`, `contacts`, `docs`,
+`drive`, `forms`, `gmail`, `sheets`, `slides`, `tasks`, `youtube`.
+
+With no flag every tool registers, which is the default.
+
 ## Paginated lists
 
 Every tool that lists many items returns one page in a fixed shape:

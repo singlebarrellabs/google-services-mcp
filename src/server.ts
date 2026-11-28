@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ServiceName } from "./tool-filter.js";
 import { registerTools } from "./tools/index.js";
 
 /**
@@ -20,11 +21,11 @@ const VERSION = ((): string => {
   }
 })();
 
-export function createServer(): McpServer {
+export function createServer(options: { services?: ReadonlySet<ServiceName> } = {}): McpServer {
   const server = new McpServer({
     name: "google-services-mcp",
     version: VERSION,
   });
-  registerTools(server);
+  registerTools(server, options.services);
   return server;
 }

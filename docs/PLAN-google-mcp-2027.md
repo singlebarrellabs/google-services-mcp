@@ -152,21 +152,19 @@ Pass means Phase 5. Fail means close the bridge, ship Phases 1 and 4, stop.
 Record the decision and reasons in the spike note. Do not re-litigate without
 new evidence.
 
-## Phase 4 — Service subsets (0.5 day, TDD)
+## Phase 4 — Service subsets (done 2026-11-27, TDD)
 
-Independent of the spike; ships with Phase 1 in one release.
+- **F-1.** Done. `test/tool-filter.test.ts` covers parsing, filtering and the
+  registrar gate; suite is 513 tests.
+- **F-2.** Done. `src/tool-filter.ts` holds `VALID_SERVICES`, `parseServices`,
+  `isToolEnabled`. Unknown name errors and lists the valid ones.
+- **F-3.** Decided: no persistence. Flag only. A config key would silently
+  change what a client sees when the flag is absent.
+- **F-4.** Done. README "Trimming the tool surface", with an opencode example.
+- **F-5.** Done. `docs/TOOLS.md` lists the domain prefixes.
 
-- **F-1.** Test first: `--services gmail,calendar` registers only those
-  domains. Watch it fail, then implement.
-- **F-2.** Parse and validate the flag. Unknown service is an error listing the
-  valid names; unit test covers a typo.
-- **F-3.** Decide whether the selection persists in
-  `~/.google-services-mcp/config.json`. Record the decision either way.
-- **F-4.** README: explain why this exists — tool-schema cost in hosts that
-  load every definition into every request.
-- **F-5.** `docs/TOOLS.md`: note the domain prefixes usable with the flag.
-
-Default stays "all services" so existing installs do not change.
+Verified over stdio: 134 tools with no flag, 41 with `--services
+gmail,calendar`, exit code 1 with a typo. Default behavior unchanged.
 
 ## Phase 5 — Bridge, read-only first (only if Phase 3 passes; ~2 weeks)
 

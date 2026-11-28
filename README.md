@@ -194,6 +194,40 @@ In `opencode.json` (or your global config):
 }
 ```
 
+### Trimming the tool surface
+
+Every tool definition is sent to the client on connect, and most hosts repeat
+them in every request. With 134 tools that is real context. Register only the
+families you use:
+
+```bash
+npx -y google-services-mcp serve --services gmail,calendar
+```
+
+That registers 41 tools instead of 134. Names are the `google_<domain>_`
+prefixes: `account`, `calendar`, `contacts`, `docs`, `drive`, `forms`, `gmail`,
+`sheets`, `slides`, `tasks`, `youtube`. An unknown name is an error, not a
+silent no-op. Omit the flag and nothing changes.
+
+In opencode, pass the flag as arguments:
+
+```json
+{
+  "mcp": {
+    "google-services-mcp": {
+      "type": "local",
+      "command": [
+        "npx", "-y", "google-services-mcp", "serve", "--services", "gmail,calendar"
+      ],
+      "environment": {
+        "GOOGLE_MCP_CLIENT_ID": "your-client-id",
+        "GOOGLE_MCP_CLIENT_SECRET": "your-client-secret"
+      }
+    }
+  }
+}
+```
+
 ### Claude Desktop / Cursor / other MCP clients
 
 In the client's MCP settings file (e.g. `claude_desktop_config.json`):
