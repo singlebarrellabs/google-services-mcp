@@ -47,9 +47,10 @@ Scope surfaces (134 tools): Gmail 29, Drive 15, Calendar 12, Sheets 13, Slides
 
 ## Phase 0 — Baseline (0.5 day)
 
-- **P0-1.** Open the Workspace API usage dashboard for `double-backup-438` and
-  `opencode-mcp-498623`. Record daily usage per product, per project.
-- **P0-2.** Confirm both projects are on Standard tier, not Scaled.
+- **P0-1.** Open the Workspace API usage dashboard for `opencode-mcp-498623`
+  only. `double-backup-438` was deleted by the owner on 2026-11-28; it is out
+  of scope. Record daily usage per product.
+- **P0-2.** Confirm `opencode-mcp-498623` is on Standard tier, not Scaled.
 - **P0-3.** Snapshot tool counts and scopes from `src/tools/index.ts` and
   `src/auth/config.ts`. Confirm they match the numbers above.
 - **P0-4.** Confirm whether consumer `@gmail.com` accounts can enable Google
