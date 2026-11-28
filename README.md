@@ -1,5 +1,8 @@
 # google-services-mcp
 
+_Vendor policy reviewed 2026-11-27. See
+[Google Workspace API changes](#google-workspace-api-changes-20262027)._
+
 MCP (Model Context Protocol) server that gives AI agents direct access to your
 Google services — **Gmail, Calendar, Google Meet, Drive, Contacts, Tasks,
 Sheets, Docs, Slides, YouTube, and Forms** — with multi-account OAuth support.
@@ -35,7 +38,9 @@ email, then create a Calendar event from it, or attach a Drive file to a draft.
 - **YouTube** — search videos, manage uploads/playlists/subscriptions
 - **Forms** — create forms, add questions, read responses
 - **Multi-account** — connect several Google accounts, set a default, or pass
-  an `account` argument to any tool
+  an `account` argument to any tool. Most MCP clients can also register the
+  same server twice with separate logins; `account` saves you that, and is the
+  only way to switch accounts inside a single request.
 - **OAuth 2.0** — one-time browser authorization; tokens are stored locally and refreshed automatically
 
 > **134 tools** across 11 services, all prefixed `google_`. Full reference:
@@ -46,6 +51,45 @@ email, then create a Calendar event from it, or attach a Drive file to a draft.
 - Node.js **24+** (CI runs Node 24; local dev on 26)
 - A Google Cloud project with the required APIs enabled and an OAuth 2.0
   **Desktop app** client (one-time setup, ~10 minutes — see below)
+
+## Google Workspace API changes (2026–2027)
+
+Google is changing how AI agents may reach Workspace data. This server calls
+Workspace REST APIs directly, using an OAuth client from **your** Cloud
+project, so these changes apply to your project, not to the maintainer.
+
+| Date | Change |
+| --- | --- |
+| 2026-11-24 | Standard and Scaled tiers live for Gmail, Drive and Calendar |
+| 2027-02-01 | AI agents must use a Google MCP, not Workspace REST APIs |
+| 2027-04-01 | Scaled tier billing starts; REST agent calls stay capped |
+
+What that means for this server:
+
+- **Tiers apply to your project.** Standard is free and enforces the published
+  quotas for each API. Google's MCP servers are capped at 5,000 requests per
+  day, per project, per product on Standard. REST calls use each API's own
+  published quotas. Over 99% of active developers sit inside these limits.
+- **Agent use over REST is not the compliant path from 2027-02-01.** An AI
+  agent obtaining Workspace data is expected to go through a Google MCP. Direct
+  REST calls are limited to Standard tier regardless of the tier you choose, so
+  Scaled does not buy headroom for this server.
+- **Gmail send has no compliant replacement.** Google's Gmail MCP exposes ten
+  tools and drafting is one of them; sending is not. `google_gmail_send`,
+  `google_gmail_reply`, `google_gmail_drafts_send` and
+  `google_gmail_get_attachment` have no MCP equivalent. Prefer drafting, then
+  sending from Gmail yourself.
+- **Coverage is partial on Google's side.** Google ships MCP servers for Gmail,
+  Drive, Calendar, Docs, Sheets, Slides, Chat, Tasks and People. It does not
+  ship one for Forms. YouTube is not a Workspace API and is outside this
+  policy entirely.
+
+Sources: [usage tiers and quotas][tiers] and the
+[Workspace AI Tools Addendum][addendum]. This section was last reviewed on
+2026-11-27.
+
+[tiers]: https://developers.google.com/workspace/guides/quota-usage-tiers
+[addendum]: https://workspace.google.com/terms/ai-tools/
 
 ## Install
 
