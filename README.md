@@ -1,5 +1,8 @@
 # google-services-mcp
 
+_Vendor policy reviewed 2026-11-27. See
+[Google Workspace API changes](#google-workspace-api-changes-20262027)._
+
 MCP (Model Context Protocol) server that gives AI agents direct access to your
 Google services — **Gmail, Calendar, Google Meet, Drive, Contacts, Tasks,
 Sheets, Docs, Slides, YouTube, and Forms** — with multi-account OAuth support.
@@ -35,7 +38,9 @@ email, then create a Calendar event from it, or attach a Drive file to a draft.
 - **YouTube** — search videos, manage uploads/playlists/subscriptions
 - **Forms** — create forms, add questions, read responses
 - **Multi-account** — connect several Google accounts, set a default, or pass
-  an `account` argument to any tool
+  an `account` argument to any tool. Most MCP clients can also register the
+  same server twice with separate logins; `account` saves you that, and is the
+  only way to switch accounts inside a single request.
 - **OAuth 2.0** — one-time browser authorization; tokens are stored locally and refreshed automatically
 
 > **134 tools** across 11 services, all prefixed `google_`. Full reference:
@@ -46,6 +51,50 @@ email, then create a Calendar event from it, or attach a Drive file to a draft.
 - Node.js **24+** (CI runs Node 24; local dev on 26)
 - A Google Cloud project with the required APIs enabled and an OAuth 2.0
   **Desktop app** client (one-time setup, ~10 minutes — see below)
+
+## Google Workspace API changes (2026–2027)
+
+Google is changing how AI agents may reach Workspace data. This server calls
+Workspace REST APIs directly, using an OAuth client from **your** Cloud
+project, so these changes apply to your project, not to the maintainer.
+
+| Date | Change |
+| --- | --- |
+| 2026-11-24 | Standard and Scaled tiers live for Gmail, Drive and Calendar |
+| 2027-02-01 | AI agents must use a Google MCP, not Workspace REST APIs |
+| 2027-04-01 | Scaled tier billing starts; REST agent calls stay capped |
+
+What that means for this server:
+
+- **Tiers apply to your project.** Standard is free and enforces the published
+  quotas for each API. Google's MCP servers are capped at 5,000 requests per
+  day, per project, per product on Standard. REST calls use each API's own
+  published quotas. Over 99% of active developers sit inside these limits.
+- **Agent use over REST is not the compliant path from 2027-02-01.** An AI
+  agent obtaining Workspace data is expected to go through a Google MCP. Direct
+  REST calls are limited to Standard tier regardless of the tier you choose, so
+  Scaled does not buy headroom for this server.
+- **Gmail send is covered on Google's side.** The live `gmailmcp` endpoint
+  exposes `send_message`, `reply`, `forward`, `update_draft`, labels and
+  filters. Gmail attachments are the exception: Google exposes no attachment
+  tool.
+- **Coverage, enumerated with `tools/list` on 2026-11-27:** Gmail 30, Drive 15,
+  Calendar 9, Chat 9, Sheets 9, Tasks 9, Slides 4, People 3, Docs 2, Universal
+  Search 1 — 91 tools, 39 read-only. Sheets, Docs and Slides edits go through a
+  `batchUpdate` passthrough, so one tool covers many operations.
+- **What has no Google MCP equivalent:** Gmail attachments, send-as, vacation,
+  filter delete and update, label delete; Drive share, permission delete,
+  export, untrash and permanent delete; Calendar create, update and delete
+  calendar; Contacts create, update and delete; creating a document,
+  spreadsheet or presentation; Forms; and YouTube. Those tools cannot be
+  replaced by pointing at Google's servers instead.
+
+Sources: [usage tiers and quotas][tiers] and the
+[Workspace AI Tools Addendum][addendum]. This section was last reviewed on
+2026-11-27.
+
+[tiers]: https://developers.google.com/workspace/guides/quota-usage-tiers
+[addendum]: https://workspace.google.com/terms/ai-tools/
 
 ## Install
 
@@ -136,6 +185,40 @@ In `opencode.json` (or your global config):
       "type": "local",
       "command": ["npx", "-y", "google-services-mcp"],
       "enabled": true,
+      "environment": {
+        "GOOGLE_MCP_CLIENT_ID": "your-client-id",
+        "GOOGLE_MCP_CLIENT_SECRET": "your-client-secret"
+      }
+    }
+  }
+}
+```
+
+### Trimming the tool surface
+
+Every tool definition is sent to the client on connect, and most hosts repeat
+them in every request. With 134 tools that is real context. Register only the
+families you use:
+
+```bash
+npx -y google-services-mcp serve --services gmail,calendar
+```
+
+That registers 41 tools instead of 134. Names are the `google_<domain>_`
+prefixes: `account`, `calendar`, `contacts`, `docs`, `drive`, `forms`, `gmail`,
+`sheets`, `slides`, `tasks`, `youtube`. An unknown name is an error, not a
+silent no-op. Omit the flag and nothing changes.
+
+In opencode, pass the flag as arguments:
+
+```json
+{
+  "mcp": {
+    "google-services-mcp": {
+      "type": "local",
+      "command": [
+        "npx", "-y", "google-services-mcp", "serve", "--services", "gmail,calendar"
+      ],
       "environment": {
         "GOOGLE_MCP_CLIENT_ID": "your-client-id",
         "GOOGLE_MCP_CLIENT_SECRET": "your-client-secret"

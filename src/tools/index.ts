@@ -149,6 +149,7 @@ import {
   updateVideo,
   uploadVideo,
 } from "../services/youtube.js";
+import { isToolEnabled, type ServiceName } from "../tool-filter.js";
 import { err, ok } from "../util/result.js";
 
 /** Wrap a service call that resolves its own auth client. */
@@ -164,9 +165,26 @@ async function withClient<T>(
   }
 }
 
-export function registerTools(server: McpServer): void {
+type ToolRegistrar = Pick<McpServer, "registerTool">;
+
+export function registerTools(server: ToolRegistrar, services?: ReadonlySet<ServiceName>): void {
+  const registerTool = server.registerTool.bind(server);
+
+  /**
+   * Thin gate in front of the SDK registrar. With no `--services` filter every
+   * tool registers exactly as before.
+   */
+  const tool = ((name: string, definition: unknown, handler: unknown) => {
+    if (!isToolEnabled(name, services)) return undefined;
+    return (registerTool as unknown as (n: string, d: unknown, h: unknown) => unknown)(
+      name,
+      definition,
+      handler,
+    );
+  }) as McpServer["registerTool"];
+
   // ---- Account management -------------------------------------------------
-  server.registerTool(
+  tool(
     "google_account_add",
     {
       title: "Add a Google account",
@@ -190,7 +208,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_account_list",
     {
       title: "List connected Google accounts",
@@ -211,7 +229,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_account_remove",
     {
       title: "Remove a Google account",
@@ -230,7 +248,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_account_set_default",
     {
       title: "Set the default Google account",
@@ -250,7 +268,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_account_status",
     {
       title: "Google services status",
@@ -268,7 +286,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // ---- Gmail --------------------------------------------------------------
-  server.registerTool(
+  tool(
     "google_gmail_send",
     {
       title: "Send email",
@@ -368,7 +386,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_list",
     {
       title: "List emails",
@@ -388,7 +406,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => listGmailMessages(client, { query, maxResults, pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_get",
     {
       title: "Read an email",
@@ -401,7 +419,7 @@ export function registerTools(server: McpServer): void {
     async ({ id, account }) => withClient(account, (client) => getGmailMessage(client, { id })),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_threads_list",
     {
       title: "List email threads",
@@ -420,7 +438,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => listGmailThreads(client, { query, maxResults, pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_threads_get",
     {
       title: "Read an email thread",
@@ -439,7 +457,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => getGmailThread(client, { id, format })),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_modify",
     {
       title: "Modify email labels",
@@ -458,7 +476,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => modifyGmailMessage(client, { id, addLabels, removeLabels })),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_reply",
     {
       title: "Reply to an email",
@@ -552,7 +570,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_list_attachments",
     {
       title: "List email attachments",
@@ -566,7 +584,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => listGmailAttachments(client, { id })),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_get_attachment",
     {
       title: "Get email attachment",
@@ -633,7 +651,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_drafts_create",
     {
       title: "Create email draft",
@@ -719,7 +737,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_drafts_update",
     {
       title: "Update email draft",
@@ -812,7 +830,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_drafts_list",
     {
       title: "List email drafts",
@@ -827,7 +845,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => listGmailDrafts(client, { maxResults, pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_drafts_get",
     {
       title: "Get email draft",
@@ -840,7 +858,7 @@ export function registerTools(server: McpServer): void {
     async ({ id, account }) => withClient(account, (client) => getGmailDraft(client, { id })),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_drafts_send",
     {
       title: "Send email draft",
@@ -853,7 +871,7 @@ export function registerTools(server: McpServer): void {
     async ({ id, account }) => withClient(account, (client) => sendGmailDraft(client, { id })),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_drafts_delete",
     {
       title: "Delete email draft",
@@ -873,7 +891,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_labels_list",
     {
       title: "List email labels",
@@ -885,7 +903,7 @@ export function registerTools(server: McpServer): void {
     async ({ account }) => withClient(account, (client) => listGmailLabels(client)),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_labels_create",
     {
       title: "Create email label",
@@ -903,7 +921,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_labels_delete",
     {
       title: "Delete email label",
@@ -923,7 +941,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_labels_update",
     {
       title: "Update email label",
@@ -942,7 +960,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_vacation_get",
     {
       title: "Get vacation responder",
@@ -954,7 +972,7 @@ export function registerTools(server: McpServer): void {
     async ({ account }) => withClient(account, (client) => getVacationSettings(client)),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_vacation_update",
     {
       title: "Update vacation responder",
@@ -990,7 +1008,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_sendas_list",
     {
       title: "List send-as aliases",
@@ -1002,7 +1020,7 @@ export function registerTools(server: McpServer): void {
     async ({ account }) => withClient(account, (client) => listSendAs(client)),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_sendas_create",
     {
       title: "Create send-as alias",
@@ -1020,7 +1038,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_filters_list",
     {
       title: "List Gmail filters",
@@ -1032,7 +1050,7 @@ export function registerTools(server: McpServer): void {
     async ({ account }) => withClient(account, (client) => listGmailFilters(client)),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_filters_create",
     {
       title: "Create Gmail filter",
@@ -1065,7 +1083,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => createGmailFilter(client, { criteria, action })),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_filters_delete",
     {
       title: "Delete Gmail filter",
@@ -1085,7 +1103,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_trash",
     {
       title: "Trash email",
@@ -1098,7 +1116,7 @@ export function registerTools(server: McpServer): void {
     async ({ id, account }) => withClient(account, (client) => trashGmailMessage(client, { id })),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_untrash",
     {
       title: "Restore email from trash",
@@ -1111,7 +1129,7 @@ export function registerTools(server: McpServer): void {
     async ({ id, account }) => withClient(account, (client) => untrashGmailMessage(client, { id })),
   );
 
-  server.registerTool(
+  tool(
     "google_gmail_delete",
     {
       title: "Delete email permanently",
@@ -1132,7 +1150,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // ---- Calendar -----------------------------------------------------------
-  server.registerTool(
+  tool(
     "google_calendar_list_calendars",
     {
       title: "List calendars",
@@ -1149,7 +1167,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => listCalendars(client, { pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_calendar_list_events",
     {
       title: "List calendar events",
@@ -1186,7 +1204,7 @@ export function registerTools(server: McpServer): void {
       }),
   );
 
-  server.registerTool(
+  tool(
     "google_calendar_create_event",
     {
       title: "Create calendar event",
@@ -1264,7 +1282,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_calendar_create_meet",
     {
       title: "Create event with Google Meet",
@@ -1285,7 +1303,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_calendar_get_event",
     {
       title: "Get calendar event",
@@ -1300,7 +1318,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => getEvent(client, { eventId, calendarId })),
   );
 
-  server.registerTool(
+  tool(
     "google_calendar_update_event",
     {
       title: "Update calendar event",
@@ -1393,7 +1411,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_calendar_delete_event",
     {
       title: "Delete calendar event",
@@ -1415,7 +1433,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_calendar_respond",
     {
       title: "Respond to calendar event invite",
@@ -1464,7 +1482,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_calendar_create",
     {
       title: "Create calendar",
@@ -1480,7 +1498,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => createCalendar(client, { summary, timeZone, description })),
   );
 
-  server.registerTool(
+  tool(
     "google_calendar_update",
     {
       title: "Update calendar",
@@ -1500,7 +1518,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_calendar_delete",
     {
       title: "Delete calendar",
@@ -1521,7 +1539,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_calendar_free_busy",
     {
       title: "Query calendar free/busy",
@@ -1540,7 +1558,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // ---- Drive --------------------------------------------------------------
-  server.registerTool(
+  tool(
     "google_drive_list",
     {
       title: "List Drive files",
@@ -1559,7 +1577,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => listDriveFiles(client, { query, pageSize, pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_drive_get",
     {
       title: "Get Drive file",
@@ -1573,7 +1591,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => getDriveFile(client, { fileId })),
   );
 
-  server.registerTool(
+  tool(
     "google_drive_upload",
     {
       title: "Create/upload Drive file",
@@ -1603,7 +1621,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_drive_update",
     {
       title: "Update Drive file",
@@ -1628,7 +1646,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_drive_delete",
     {
       title: "Delete Drive file",
@@ -1650,7 +1668,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_drive_trash",
     {
       title: "Move Drive file to trash",
@@ -1672,7 +1690,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_drive_restore",
     {
       title: "Restore Drive file from trash",
@@ -1693,7 +1711,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_drive_share",
     {
       title: "Share Drive file",
@@ -1746,7 +1764,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_drive_list_permissions",
     {
       title: "List Drive file permissions",
@@ -1760,7 +1778,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => listDrivePermissions(client, { fileId })),
   );
 
-  server.registerTool(
+  tool(
     "google_drive_delete_permission",
     {
       title: "Delete Drive file permission",
@@ -1775,7 +1793,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => deleteDrivePermission(client, { fileId, permissionId })),
   );
 
-  server.registerTool(
+  tool(
     "google_drive_download",
     {
       title: "Download Drive file",
@@ -1796,7 +1814,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => downloadDriveFile(client, { fileId, saveToPath })),
   );
 
-  server.registerTool(
+  tool(
     "google_drive_export",
     {
       title: "Export Drive file",
@@ -1818,7 +1836,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => exportDriveFile(client, { fileId, mimeType, saveToPath })),
   );
 
-  server.registerTool(
+  tool(
     "google_drive_create_folder",
     {
       title: "Create Drive folder",
@@ -1833,7 +1851,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => createDriveFolder(client, { name, parentFolderId })),
   );
 
-  server.registerTool(
+  tool(
     "google_drive_copy",
     {
       title: "Copy Drive file",
@@ -1848,7 +1866,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => copyDriveFile(client, { fileId, name })),
   );
 
-  server.registerTool(
+  tool(
     "google_drive_move",
     {
       title: "Move Drive file to folder",
@@ -1871,7 +1889,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // ---- Contacts -----------------------------------------------------------
-  server.registerTool(
+  tool(
     "google_contacts_list",
     {
       title: "List contacts",
@@ -1889,7 +1907,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => listContacts(client, { pageSize, pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_contacts_search",
     {
       title: "Search contacts",
@@ -1903,7 +1921,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => searchContacts(client, { query })),
   );
 
-  server.registerTool(
+  tool(
     "google_contacts_create",
     {
       title: "Create contact",
@@ -1925,7 +1943,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_contacts_update",
     {
       title: "Update contact",
@@ -1958,7 +1976,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_contacts_get",
     {
       title: "Get contact",
@@ -1975,7 +1993,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => getContact(client, { resourceName })),
   );
 
-  server.registerTool(
+  tool(
     "google_contacts_delete",
     {
       title: "Delete contact",
@@ -1992,7 +2010,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // ---- Tasks --------------------------------------------------------------
-  server.registerTool(
+  tool(
     "google_tasks_list_lists",
     {
       title: "List task lists",
@@ -2009,7 +2027,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => listTaskLists(client, { pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_tasks_list",
     {
       title: "List tasks",
@@ -2042,7 +2060,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_tasks_create",
     {
       title: "Create task",
@@ -2062,7 +2080,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_tasks_update",
     {
       title: "Update task",
@@ -2083,7 +2101,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_tasks_create_list",
     {
       title: "Create task list",
@@ -2097,7 +2115,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => createTaskList(client, { title })),
   );
 
-  server.registerTool(
+  tool(
     "google_tasks_update_list",
     {
       title: "Rename task list",
@@ -2112,7 +2130,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => updateTaskList(client, { tasklistId, title })),
   );
 
-  server.registerTool(
+  tool(
     "google_tasks_delete_list",
     {
       title: "Delete task list",
@@ -2133,7 +2151,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_tasks_complete",
     {
       title: "Complete task",
@@ -2148,7 +2166,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => completeTask(client, { taskId, tasklistId })),
   );
 
-  server.registerTool(
+  tool(
     "google_tasks_delete",
     {
       title: "Delete task",
@@ -2171,7 +2189,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // ---- Sheets --------------------------------------------------------------
-  server.registerTool(
+  tool(
     "google_sheets_get",
     {
       title: "Get spreadsheet",
@@ -2189,7 +2207,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => getSpreadsheet(client, { spreadsheetId, range })),
   );
 
-  server.registerTool(
+  tool(
     "google_sheets_read",
     {
       title: "Read spreadsheet range",
@@ -2210,7 +2228,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_sheets_write",
     {
       title: "Write to spreadsheet",
@@ -2232,7 +2250,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_sheets_append",
     {
       title: "Append to spreadsheet",
@@ -2254,7 +2272,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_sheets_create",
     {
       title: "Create spreadsheet",
@@ -2269,7 +2287,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => createSpreadsheet(client, { title, sheets })),
   );
 
-  server.registerTool(
+  tool(
     "google_sheets_batch_update",
     {
       title: "Batch update spreadsheet",
@@ -2286,7 +2304,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => batchUpdateSheet(client, { spreadsheetId, requests })),
   );
 
-  server.registerTool(
+  tool(
     "google_sheets_add_sheet",
     {
       title: "Add spreadsheet tab",
@@ -2307,7 +2325,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => addSheet(client, { spreadsheetId, title, index })),
   );
 
-  server.registerTool(
+  tool(
     "google_sheets_delete_sheet",
     {
       title: "Delete spreadsheet tab",
@@ -2329,7 +2347,7 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  server.registerTool(
+  tool(
     "google_sheets_rename_sheet",
     {
       title: "Rename spreadsheet tab",
@@ -2345,7 +2363,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => renameSheet(client, { spreadsheetId, sheetId, title })),
   );
 
-  server.registerTool(
+  tool(
     "google_sheets_insert_rows",
     {
       title: "Insert rows",
@@ -2364,7 +2382,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_sheets_delete_rows",
     {
       title: "Delete rows",
@@ -2387,7 +2405,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_sheets_get_named_ranges",
     {
       title: "Get named ranges",
@@ -2401,7 +2419,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => getNamedRanges(client, { spreadsheetId })),
   );
 
-  server.registerTool(
+  tool(
     "google_sheets_set_named_range",
     {
       title: "Set named range",
@@ -2426,7 +2444,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // ---- Docs ---------------------------------------------------------------
-  server.registerTool(
+  tool(
     "google_docs_get",
     {
       title: "Get document",
@@ -2440,7 +2458,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => getDocument(client, { documentId })),
   );
 
-  server.registerTool(
+  tool(
     "google_docs_read",
     {
       title: "Read document text",
@@ -2454,7 +2472,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => getDocumentText(client, { documentId })),
   );
 
-  server.registerTool(
+  tool(
     "google_docs_create",
     {
       title: "Create document",
@@ -2468,7 +2486,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => createDocument(client, { title })),
   );
 
-  server.registerTool(
+  tool(
     "google_docs_insert_text",
     {
       title: "Insert text in document",
@@ -2489,7 +2507,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => insertText(client, { documentId, text, index })),
   );
 
-  server.registerTool(
+  tool(
     "google_docs_replace_text",
     {
       title: "Replace text in document",
@@ -2508,7 +2526,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_docs_batch_update",
     {
       title: "Batch update document",
@@ -2523,7 +2541,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => batchUpdateDocument(client, { documentId, requests })),
   );
 
-  server.registerTool(
+  tool(
     "google_docs_delete_range",
     {
       title: "Delete range",
@@ -2539,7 +2557,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => deleteRange(client, { documentId, startIndex, endIndex })),
   );
 
-  server.registerTool(
+  tool(
     "google_docs_insert_table",
     {
       title: "Insert table",
@@ -2556,7 +2574,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => insertTable(client, { documentId, rows, columns, index })),
   );
 
-  server.registerTool(
+  tool(
     "google_docs_insert_inline_image",
     {
       title: "Insert inline image",
@@ -2573,7 +2591,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // ---- Slides -------------------------------------------------------------
-  server.registerTool(
+  tool(
     "google_slides_get",
     {
       title: "Get presentation",
@@ -2587,7 +2605,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => getPresentation(client, { presentationId })),
   );
 
-  server.registerTool(
+  tool(
     "google_slides_create",
     {
       title: "Create presentation",
@@ -2601,7 +2619,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => createPresentation(client, { title })),
   );
 
-  server.registerTool(
+  tool(
     "google_slides_replace_text",
     {
       title: "Replace text in presentation",
@@ -2620,7 +2638,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_slides_add_slide",
     {
       title: "Add slide",
@@ -2634,7 +2652,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => createSlide(client, { presentationId })),
   );
 
-  server.registerTool(
+  tool(
     "google_slides_delete_slide",
     {
       title: "Delete slide",
@@ -2649,7 +2667,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => deleteSlide(client, { presentationId, slideObjectId })),
   );
 
-  server.registerTool(
+  tool(
     "google_slides_get_page",
     {
       title: "Get slide page",
@@ -2664,7 +2682,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => getSlidePage(client, { presentationId, pageObjectId })),
   );
 
-  server.registerTool(
+  tool(
     "google_slides_batch_update",
     {
       title: "Batch update presentation",
@@ -2682,7 +2700,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_slides_duplicate_slide",
     {
       title: "Duplicate slide",
@@ -2697,7 +2715,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => duplicateSlide(client, { presentationId, slideObjectId })),
   );
 
-  server.registerTool(
+  tool(
     "google_slides_move_slide",
     {
       title: "Move slide",
@@ -2715,7 +2733,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_slides_create_textbox",
     {
       title: "Create textbox",
@@ -2737,7 +2755,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_slides_create_image",
     {
       title: "Create image",
@@ -2760,7 +2778,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // ---- YouTube ------------------------------------------------------------
-  server.registerTool(
+  tool(
     "google_youtube_search",
     {
       title: "Search YouTube videos",
@@ -2776,7 +2794,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => searchVideos(client, { query, maxResults, pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_upload",
     {
       title: "Upload YouTube video",
@@ -2825,7 +2843,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_get_video",
     {
       title: "Get YouTube video details",
@@ -2838,7 +2856,7 @@ export function registerTools(server: McpServer): void {
     async ({ videoId, account }) => withClient(account, (client) => getVideo(client, { videoId })),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_update_video",
     {
       title: "Update YouTube video metadata",
@@ -2861,7 +2879,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_my_videos",
     {
       title: "List my YouTube videos",
@@ -2876,7 +2894,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => getMyVideos(client, { maxResults, pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_list_playlists",
     {
       title: "List my playlists",
@@ -2891,7 +2909,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => listPlaylists(client, { maxResults, pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_create_playlist",
     {
       title: "Create YouTube playlist",
@@ -2912,7 +2930,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_delete_playlist",
     {
       title: "Delete YouTube playlist",
@@ -2926,7 +2944,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => deletePlaylist(client, { playlistId })),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_add_to_playlist",
     {
       title: "Add video to playlist",
@@ -2941,7 +2959,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => addVideoToPlaylist(client, { playlistId, videoId })),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_remove_from_playlist",
     {
       title: "Remove video from playlist",
@@ -2955,7 +2973,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => removeVideoFromPlaylist(client, { playlistItemId })),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_subscriptions",
     {
       title: "List channel subscriptions",
@@ -2970,7 +2988,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => listSubscriptions(client, { maxResults, pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_list_comments",
     {
       title: "List YouTube video comments",
@@ -2989,7 +3007,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => listComments(client, { videoId, maxResults, pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_insert_comment",
     {
       title: "Post a YouTube comment",
@@ -3004,7 +3022,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => insertComment(client, { videoId, text })),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_set_comment_moderation",
     {
       title: "Set YouTube comment moderation status",
@@ -3023,7 +3041,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_youtube_mark_comment_spam",
     {
       title: "Mark YouTube comment as spam",
@@ -3038,7 +3056,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // ---- Forms --------------------------------------------------------------
-  server.registerTool(
+  tool(
     "google_forms_get",
     {
       title: "Get form",
@@ -3051,7 +3069,7 @@ export function registerTools(server: McpServer): void {
     async ({ formId, account }) => withClient(account, (client) => getForm(client, { formId })),
   );
 
-  server.registerTool(
+  tool(
     "google_forms_responses",
     {
       title: "Get form responses",
@@ -3067,7 +3085,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => getFormResponses(client, { formId, pageSize, pageToken })),
   );
 
-  server.registerTool(
+  tool(
     "google_forms_create",
     {
       title: "Create form",
@@ -3080,7 +3098,7 @@ export function registerTools(server: McpServer): void {
     async ({ title, account }) => withClient(account, (client) => createForm(client, { title })),
   );
 
-  server.registerTool(
+  tool(
     "google_forms_add_question",
     {
       title: "Add form question",
@@ -3107,7 +3125,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_forms_update_question",
     {
       title: "Update form question",
@@ -3128,7 +3146,7 @@ export function registerTools(server: McpServer): void {
       ),
   );
 
-  server.registerTool(
+  tool(
     "google_forms_delete_question",
     {
       title: "Delete form question",
@@ -3143,7 +3161,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => deleteFormQuestion(client, { formId, questionId })),
   );
 
-  server.registerTool(
+  tool(
     "google_forms_move_question",
     {
       title: "Move form question",
@@ -3159,7 +3177,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => moveFormQuestion(client, { formId, questionId, newIndex })),
   );
 
-  server.registerTool(
+  tool(
     "google_forms_rename",
     {
       title: "Rename form",
@@ -3174,7 +3192,7 @@ export function registerTools(server: McpServer): void {
       withClient(account, (client) => renameForm(client, { formId, title })),
   );
 
-  server.registerTool(
+  tool(
     "google_forms_delete",
     {
       title: "Delete form",
@@ -3187,7 +3205,7 @@ export function registerTools(server: McpServer): void {
     async ({ formId, account }) => withClient(account, (client) => deleteForm(client, { formId })),
   );
 
-  server.registerTool(
+  tool(
     "google_forms_export_responses",
     {
       title: "Export form responses to Sheets",
