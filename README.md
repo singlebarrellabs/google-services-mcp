@@ -76,17 +76,18 @@ What that means for this server:
   Scaled does not buy headroom for this server.
 - **Gmail send is covered on Google's side.** The live `gmailmcp` endpoint
   exposes `send_message`, `reply`, `forward`, `update_draft`, labels and
-  filters, so nothing here is stranded by policy. Gmail attachments are the
-  exception: Google exposes no attachment tool.
-- **Coverage is wider than Google's docs show.** Google's reference pages list
-  ten Gmail tools; the live endpoint enumerated on 2026-11-27 exposes 30.
-  Live counts: Gmail 30, Drive 15, Calendar 9, Chat 9, Sheets 9, Tasks 9,
-  Slides 4, People 3, Docs 2, Universal Search 1 — 91 tools, 39 read-only.
-- **What has no Google MCP equivalent:** Gmail attachments, send-as and
-  vacation settings; Drive share, permission delete, move, export and restore;
-  Calendar create, update and delete calendar; Contacts create, update and
-  delete; Forms; and YouTube. Those tools cannot be replaced by pointing at
-  Google's servers instead.
+  filters. Gmail attachments are the exception: Google exposes no attachment
+  tool.
+- **Coverage, enumerated with `tools/list` on 2026-11-27:** Gmail 30, Drive 15,
+  Calendar 9, Chat 9, Sheets 9, Tasks 9, Slides 4, People 3, Docs 2, Universal
+  Search 1 — 91 tools, 39 read-only. Sheets, Docs and Slides edits go through a
+  `batchUpdate` passthrough, so one tool covers many operations.
+- **What has no Google MCP equivalent:** Gmail attachments, send-as, vacation,
+  filter delete and update, label delete; Drive share, permission delete,
+  export, untrash and permanent delete; Calendar create, update and delete
+  calendar; Contacts create, update and delete; creating a document,
+  spreadsheet or presentation; Forms; and YouTube. Those tools cannot be
+  replaced by pointing at Google's servers instead.
 
 Sources: [usage tiers and quotas][tiers] and the
 [Workspace AI Tools Addendum][addendum]. This section was last reviewed on
