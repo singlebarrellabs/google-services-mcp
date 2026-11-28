@@ -175,9 +175,8 @@ read-only tools); writes come second, and only after the read pass ships.
 
 - **B-1.** Transport module: Streamable HTTP MCP client per Google endpoint.
 - **B-2.** Auth: reuse the token store, one credential per account and endpoint.
-- **B-3.** Tool mapping table, written before code. Enumeration shows near
-  parity: Gmail 30 vs 29 here, Drive 15 vs 15, Tasks 9 vs 9, and `batchUpdate`
-  passthroughs cover most Docs, Sheets and Slides edits.
+- **B-3.** Done 2026-11-27: `docs/research/tool-mapping.md` maps all 134 tools.
+  80 are servable (48 direct, 29 composite, 3 partial); 54 are not.
 - **B-4.** `/mcp/v1self` omits the approval-gated tools (Gmail send/reply/
   forward, Calendar delete_event, Chat send_message, Tasks delete_task, Drive
   request_access). Use it only when a host cannot render elicitation, and say
